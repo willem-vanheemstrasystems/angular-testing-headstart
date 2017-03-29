@@ -311,6 +311,50 @@ This is a powerful idea that we’ll use a lot in testing: use dependency inject
 
 ##Testing getTrack
 
+Now, when writing tests for the service, we want to verify that we’re calling the correct URL.
+
+Let’s write a test for the ```getTrack``` method of music/src/app/spotify.service.ts:
+
+```javascript
+  getTrack(id: string): Observable<any[]> {
+    return this.query(`/tracks/${id}`);
+  }
+```
+
+If you remember how that method works, it uses the query method, that builds the URL based on the parameters it receives:
+
+```javascript
+  query(URL: string, params?: Array<string>): Observable<any[]> {
+    let queryURL = `${SpotifyService.BASE_URL}${URL}`;
+    if (params) {
+      queryURL = `${queryURL}?${params.join('&')}`;
+    }
+
+    return this.http.request(queryURL).map((res: any) => res.json());
+  }
+```
+
+Since we’re passing ```/tracks/${id}``` we assume that when calling ```getTrack('TRACK_ID')``` the expected URL will be ```https://api.spotify.com/v1/tracks/TRACK_ID```.
+
+Here is how we write the test for this:
+
+```javascript
+  describe('getTrack', () => {
+    it('retrieves using the track ID',
+      inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+        let res;
+        expectURL(backend, 'https://api.spotify.com/v1/tracks/TRACK_ID');
+        svc.getTrack('TRACK_ID').subscribe((_res) => {
+          res = _res;
+        });
+        tick();
+        expect(res.name).toBe('felipe');
+      }))
+    );
+  });
+```
+
+
 
 
 
