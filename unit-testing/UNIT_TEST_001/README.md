@@ -354,7 +354,253 @@ Here is how we write the test for this:
   });
 ```
 
+This seems like a lot to grasp at first, so let’s break it down a bit:
 
+Every time we write tests with dependencies, we need to ask Angular injector to provide us with the instances of those classes. To do that we use:
 
+```javascript
+...
+  inject([Class1, /* ..., */ ClassN],
+    (instance1, /* ..., */ instanceN) => {
+      // ... testing code ...
+  })
+...
+```
 
+When you are testing code that returns either a Promise or an RxJS Observable, you can use ```fakeAsync``` helper to test that code as if it were synchronous. This way every Promises are fulfilled and Observables are notified immediately after you call ```tick()```.
 
+So in this code:
+
+```javascript
+...
+  inject([SpotifyService, MockBackend],
+        fakeAsync((spotifyService, mockBackend) => {
+    // ... testing code ...
+  }));
+...
+```
+
+We’re getting two variables: ```spotifyService``` and ```mockBackend```. The first one has a concrete instance of the SpotifyService and the second is an instance MockBackend class. Notice that the arguments to the inner function (```spotifyService```, ```mockBackend```) are injections of the classes specified in the first argument array of the inject function (```SpotifyService``` and ```MockBackend```).
+
+We’re also running inside ```fakeAsync``` which means that async code will be run synchronously when ```tick()``` is called.
+
+Now that we’ve setup the injections and context for our test, we can start writing our “actual” test. We start by declaring a ```res``` variable that will eventually get the HTTP call response. Next we subscribe to ```backend.connections```:
+
+```javascript
+  describe('getTrack', () => {
+    it('retrieves using the track ID',
+      inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+        let res;
+        // ... testing code ...
+      }))
+    );
+  });        
+```
+
+```javascript
+...
+  // sets up an expectation that the correct URL will being requested
+  function expectURL(backend: MockBackend, url: string) {
+    backend.connections.subscribe(c => { ... });
+    // ... testing code ...
+    tick();
+    // ... testing code ...    
+  }
+...
+```
+
+Here we’re saying that whenever a new connection comes in to ```backend``` we want to be notified (e.g. call this function).
+
+We want to verify that the ```SpotifyService``` is calling out to the correct URL given the track id ```TRACK_ID```. So what we do is specify an ```expectation``` that the URL is as we would expect. We can get the URL from the connection ```c``` via ```c.request.url```. So we setup an expectation that ```c.request.url``` should be the string 'https://api.spotify.com/v1/tracks/TRACK_ID':
+
+```javascript
+  // sets up an expectation that the correct URL will being requested
+  function expectURL(backend: MockBackend, url: string) {
+    backend.connections.subscribe(c => {
+      expect(c.request.url).toBe(url);
+      // ... testing code ...      
+    });
+  }
+```
+
+```javascript
+...
+  inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+    let res;
+    expectURL(backend, 'https://api.spotify.com/v1/tracks/TRACK_ID');
+    // ... testing code ...
+  }))
+...
+```
+
+When our test is run, if the request URL doesn’t match, then the test will fail.
+
+Now that we’ve received our request and verified that it is correct, we need to craft a response. We do this by creating a new ```ResponseOptions``` instance. Here we specify that it will return the JSON string: ```{"name": "felipe"}``` as the body of the response.
+
+```javascript
+  // sets up an expectation that the correct URL will being requested
+  function expectURL(backend: MockBackend, url: string) {
+    backend.connections.subscribe(c => {
+      // ... testing code ...
+      const response = new ResponseOptions({body: '{"name": "felipe"}'});
+      // ... testing code ...
+    });
+  }
+```
+
+Finally, we tell the connection to replace the response with a ```Response``` object that wraps the ```ResponseOptions``` instance we created:
+
+```javascript
+  // sets up an expectation that the correct URL will being requested
+  function expectURL(backend: MockBackend, url: string) {
+    backend.connections.subscribe(c => {
+      // ... testing code ...
+      c.mockRespond(new Response(response));
+    });
+  }
+```
+
+NOTE: An interesting thing to note here is that your callback function in subscribe can be as sophisticated as you wish it to be. You could have conditional logic based on the URL, query parameters, or anything you can read from the request object etc.
+This allows us to write tests for nearly every possible scenario our code might encounter.
+
+We have now everything setup to call the ```getTrack``` method with ```TRACK_ID``` as a parameter and tracking the response in our res variable:
+
+```javascript
+...
+  describe('getTrack', () => {
+    it('retrieves using the track ID',
+      inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+        // ... testing code ...
+        svc.getTrack('TRACK_ID').subscribe((_res) => {
+          res = _res;
+        });
+        tick();
+        // ... testing code ...
+      }))
+    );
+  });
+...  
+```
+
+If we ended our test here, we would be waiting for the HTTP call to be made and the response to be fulfilled before the callback function would be triggered. It would also happen on a different execution path and we’d have to orchestrate our code to sync things up. Thankfully using ```fakeAsync``` takes that problem away. All we need to do is call ```tick()``` and, like magic, our async code will be executed.
+
+We now perform one final check just to make sure our response we setup is the one we received:
+
+```javascript
+  describe('getTrack', () => {
+    it('retrieves using the track ID',
+      inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+        // ... testing code ...
+        expect(res.name).toBe('felipe');
+      }))
+    );
+  });
+```
+
+Following the same lines, it is very simple to create similar tests for ```getArtist``` and ```getAlbum``` methods.
+
+Now ```searchTrack``` is slightly different: instead of calling ```query```, this method uses the ```search``` method:
+
+-- See music/src/app/spotify.service.spec.ts --
+
+```javascript
+...
+  describe('searchTrack', () => {
+    it('searches type and term',
+      inject([SpotifyService, MockBackend], fakeAsync((svc, backend) => {
+        let res;
+        expectURL(backend, 'https://api.spotify.com/v1/search?q=TERM&type=track');
+        svc.searchTrack('TERM').subscribe((_res) => {
+          res = _res;
+        });
+        tick();
+        expect(res.name).toBe('felipe');
+      }))
+    );
+  });
+...  
+```
+
+And then ```search``` calls ```query``` with ```/search``` as the first argument and an Array containing ```q=<query>``` and ```type=track``` as the second argument:
+
+-- See music/src/app/spotify.service.ts --
+
+```javascript
+...
+  search(query: string, type: string): Observable<any[]> {
+    return this.query(`/search`, [
+      `q=${query}`,
+      `type=${type}`
+    ]);
+  }
+
+  searchTrack(query: string): Observable<any[]> {
+    return this.search(query, 'track');
+  }
+...
+
+```
+
+Finally, ```query``` will transform the parameters into a URL ```path``` with a ```QueryString```. So now, the URL we expect to call ends with ```/search?q=<query>&type=track```.
+
+```javascript
+...
+  query(URL: string, params?: Array<string>): Observable<any[]> {
+    let queryURL = `${SpotifyService.BASE_URL}${URL}`;
+    if (params) {
+      queryURL = `${queryURL}?${params.join('&')}`;
+    }
+
+    return this.http.request(queryURL).map((res: any) => res.json());
+  }
+...
+```
+
+Let’s review what this test ```searchTrack``` does:
+
+• it hooks into the HTTP lifecycle, by adding a callback when a new HTTP connection is initiated
+
+• it sets an expectation for the URL we expect the connection to use including the query type and the search term
+
+• it calls the method we’re testing: ```svc.searchTrack('TERM').subscribe((_res) => { res = _res; });```
+
+• it then tells Angular to complete all the pending async calls; ```tick();```
+
+• it finally asserts that we have the expected response: ```expect(res.name).toBe('felipe');```
+
+In essence, when testing services our ***goals*** should be:
+
+1. Isolate all the dependencies by using stubs or mocks
+
+2. In case of async calls, use ```fakeAsync``` and ```tick``` to make sure they are fulfilled
+
+3. Call the service method you’re testing
+
+4. Assert that the returning value from the method matches what we expect
+
+To run the tests, type the following inside the 'music' directory:
+
+```javascript
+ng test
+```
+
+The command line will output something similar to the following:
+
+```javascript
+29 03 2017 17:12:43.298:WARN [karma]: No captured browser, open http://localhost:9876/
+29 03 2017 17:12:43.318:INFO [karma]: Karma v1.4.1 server started at http://0.0.0.0:9876/
+29 03 2017 17:12:43.319:INFO [launcher]: Launching browser Chrome with unlimited concurrency
+29 03 2017 17:12:43.421:INFO [launcher]: Starting browser Chrome
+29 03 2017 17:13:00.381:INFO [Chrome 56.0.2924 (Windows 10 0.0.0)]: Connected on socket xTrT04YIBsdqJdUdAAAA with id 651
+82769
+Chrome 56.0.2924 (Windows 10 0.0.0): Executed 7 of 13 (skipped 5) SUCCESS (0 secs / 3.55 secs)
+Chrome 56.0.2924 (Windows 10 0.0.0): Executed 7 of 13 (skipped 6) SUCCESS (5.337 secs / 3.55 secs)
+```
+
+In addition, Karma will have opened a browser window and reported the outcome of the tests.
+
+Now let’s move on to the classes that usually consume the services: ***components***.
+
+#Testing Routing to Components
+
+more to follow ...
