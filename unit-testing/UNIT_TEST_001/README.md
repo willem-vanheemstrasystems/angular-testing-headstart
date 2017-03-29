@@ -255,3 +255,62 @@ In fact, beyond not making the requests, our ```MockBackend``` will actually all
 
 ##TestBed.configureTestingModule and Providers
 
+When we test our Angular apps we need to make sure we configure the top-level ```NgModule``` that we will use for this test. When we do this, we can configure providers, declare components, and import other modules: just like you would when using NgModules generally.
+
+Sometimes when testing Angular code, we ```manually setup injections```. This is good because it gives us more control over what we’re actually testing.
+
+So in the case of testing ```Http``` requests, we don’t want to inject the “real” ```Http``` class, but instead we want to inject something that looks like ```Http```, but really intercepts the requests and returns the responses we configure.
+
+To do that, we create a version of the ```Http``` class that uses ```MockBackend``` internally.
+
+To do this, we use the ```TestBed.configureTestingModule``` in the ```beforeEach``` hook. This ```hook``` takes a callback function that will be called before each test is run, giving us a great opportunity to configure alternative class implementations.
+
+-- See music/src/app/spotify.service.spec.ts --
+
+```javascript
+describe('SpotifyService', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        BaseRequestOptions,
+        MockBackend,
+        SpotifyService,
+        { provide: Http,
+          useFactory: (backend: ConnectionBackend,
+                       defaultOptions: BaseRequestOptions) => {
+                         return new Http(backend, defaultOptions);
+                       }, deps: [MockBackend, BaseRequestOptions] },
+      ]
+    });
+  });
+```
+
+Notice that ```TestBed.configureTestingModule``` accepts an array of providers in the ```providers``` key to be used by the test injector.
+
+```BaseRequestOptions``` and ```SpotifyService``` are just the default implementation of those classes. But the last provider is a little more complicated:
+
+```javascript
+        { provide: Http,
+          useFactory: (backend: ConnectionBackend,
+                       defaultOptions: BaseRequestOptions) => {
+                         return new Http(backend, defaultOptions);
+                       }, deps: [MockBackend, BaseRequestOptions] }
+```
+
+This code uses ```provide``` with ```useFactory``` to create a version of the ```Http``` class, using a factory (that’s what useFactory does).
+
+That factory has a signature that expects ```ConnectionBackend``` and ```BaseRequestOption``` instances.
+
+The second key on that object is ```deps: [MockBackend, BaseRequestOptions]```. That indicates that we’ll be using ```MockBackend``` as the first parameter of the factory and ```BaseRequestOptions``` (the default implementation) as the second.
+
+Finally, we return our customized ```Http``` class with the ```MockBackend``` as a result of that function.
+
+What benefit do we get from this? Well now every time (in our test) that our code requests ```Http``` as an injection, it will instead receive our customized ```Http``` instance.
+
+This is a powerful idea that we’ll use a lot in testing: use dependency injection to customize dependencies and isolate the functionality you’re trying to test.
+
+##Testing getTrack
+
+
+
+
