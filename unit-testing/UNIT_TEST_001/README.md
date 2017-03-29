@@ -126,4 +126,41 @@ mkdir test
 
 ##Testing Services and HTTP
 
+Services in Angular start out their life as plain classes. In one sense, this makes our services easy to test because we can sometimes test them directly without using Angular.
+
+With Karma configuration done, let’s start testing the ```SpotifyService``` class. If we remember, this service works by interacting with the Spotify API to retrieve album, track and artist information.
+Inside the test folder where all our service tests will go. Finally, let’s create our first test file inside the app folder, called ```spotify.service.spec.ts```.
+Now we can start putting this test file together. The first thing we need to do is import the test helpers from the ```@angular/core/testing``` package:
+
+-- See music/src/app/spotify.service.spec.ts --
+
+```javascript
+import {
+  inject,
+  fakeAsync,
+  tick,
+  TestBed
+} from '@angular/core/testing';
+```
+
+Next, we’ll import a couple more classes:
+
+```javascript
+import {MockBackend} from '@angular/http/testing';
+import {
+  Http,
+  ConnectionBackend,
+  BaseRequestOptions,
+  Response,
+  ResponseOptions
+} from '@angular/http';
+```
+
+Since our service uses HTTP requests, we’ll import the ```MockBackend``` class from ```@angular/http/testing``` package. This class will help us set expectations and verify HTTP requests.
+
+The last thing we need to import is the class we’re testing:
+
+```javascript
+import { SpotifyService } from './spotify.service';
+```
 
