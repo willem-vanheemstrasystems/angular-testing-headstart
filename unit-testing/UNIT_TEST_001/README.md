@@ -46,4 +46,82 @@ Our main focus on this section will be to understand how we write unit tests aga
 
 We’re going to learn to test Services, Components, HTTP requests and more. Along the way we’re also going to see a couple of different techniques to make our code more testable.
 
+##Angular Unit Testing framework
+
+Angular provides its own set of classes that build upon the Jasmine framework to help writing unit testing for the framework.
+
+The main testing framework can be found on the ```@angular/core/testing``` package. (Although, for testing components we’ll use the ```@angular/compiler/testing``` package and ```@angular/platformbrowser/testing``` for some other helpers. But more on that later.)
+
+##Setting Up Testing
+
+Earlier in the Routing Chapter we created an application for searching for music. In this chapter, let’s write tests for that application.
+
+Karma requires a configuration in order to run. So the first thing we need to do to setup Karma is to create a ```karma.conf.js``` file.
+
+Let’s create a karma.conf.js file on the root path of our project, like so:
+
+```javascript
+// Karma configuration file, see link for more information
+// https://karma-runner.github.io/0.13/config/configuration-file.html
+
+module.exports = function (config) {
+  config.set({
+    basePath: '',
+    frameworks: ['jasmine', '@angular/cli'],
+    plugins: [
+      require('karma-jasmine'),
+      require('karma-chrome-launcher'),
+      require('karma-jasmine-html-reporter'),
+      require('karma-coverage-istanbul-reporter'),
+      require('@angular/cli/plugins/karma')
+    ],
+    client:{
+      clearContext: false // leave Jasmine Spec Runner output visible in browser
+    },
+    files: [
+      { pattern: './src/test.ts', watched: false }
+    ],
+    preprocessors: {
+      './src/test.ts': ['@angular/cli']
+    },
+    mime: {
+      'text/x-typescript': ['ts','tsx']
+    },
+    coverageIstanbulReporter: {
+      reports: [ 'html', 'lcovonly' ],
+      fixWebpackSourcePaths: true
+    },
+    angularCli: {
+      environment: 'dev'
+    },
+    reporters: config.angularCli && config.angularCli.codeCoverage
+              ? ['progress', 'coverage-istanbul']
+              : ['progress', 'kjhtml'],
+    port: 9876,
+    colors: true,
+    logLevel: config.LOG_INFO,
+    autoWatch: true,
+    browsers: ['Chrome'],
+    singleRun: false
+  });
+};
+```
+
+Since we’re using Angular CLI, this ```music/karma.conf.js``` file is already created for us! However, if your project does not use Angular CLI, you may need to setup Karma on your own.
+
+Don’t worry too much about this file’s contents right now, just keep in mind a few things about it:
+
+• sets PhantomJS as the target testing browser;
+
+• uses Jasmine karma framework for testing;
+
+• uses a WebPack bundle called ```test.bundle.js``` that basically wraps all our testing and app code;
+
+The next step is to create a new ```test``` folder to hold our test files.
+
+```javascript
+cd music
+mkdir test
+```
+
 
