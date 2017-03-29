@@ -164,3 +164,94 @@ The last thing we need to import is the class we’re testing:
 import { SpotifyService } from './spotify.service';
 ```
 
+##HTTP Considerations
+
+We could start writing our tests right now, but during each test execution we would be calling out and hitting the Spotify server. This is far from ideal for three reasons:
+
+1. HTTP requests are relatively slow and as our test suite grows, we’d notice it takes longer and longer to run all of the tests.
+
+2. Spotify’s API has a quota, and if our whole team is running the tests, we might use up our API call resources needlessly
+
+3. If we are offline or if Spotify is down or inaccessible our tests would start breaking, even though our code might technically be correct
+
+This is a good hint when writing unit tests: ***isolate everything that you don’t control before testing***.
+
+In our case, this piece is the Spotify service. The solution is that we will replace the HTTP request with something that would behave like it, but will not hit the real Spotify server.
+
+Doing this in the testing world is called ```mocking``` a dependency. They are sometimes also called ```stubbing``` a dependency.
+
+NOTE: You can read more about the difference between Mocks and Stubs in this article [Mocks are not Stubs](http://martinfowler.com/articles/mocksArentStubs.html).
+
+Let’s pretend we’re writing code that depends on a given ```Car``` class. This class has a bunch of methods: you can ```start``` a car instance, ```stop``` it, ```park``` it and ```getSpeed``` of that car. Let’s see how we could use stubs and mocks to write tests that depend on this class.
+
+##Stubs
+
+Stubs are objects we create on the fly, with a subset of the behaviors our dependency has.
+Let’s write a test that just interacts with the ```start``` method of the class.
+You could create a stub of that ```Car``` class on-the-fly and inject that into the class you’re testing:
+
+```javascript
+describe('Speedtrap', function() {
+  it('tickets a car at more than 60mph', function() {
+    var stubCar = { getSpeed: function() { return 61; } };
+    var speedTrap = new SpeedTrap(stubCar);
+    speedTrap.ticketCount = 0;
+    speedTrap.checkSpeed();
+    expect(speedTrap.ticketCount).toEqual(1);
+  });
+});
+```
+
+This would be a typical case for using a stub and we’d probably only use it locally to that test.
+
+##Mocks
+
+Mocks in our case will be a more complete representation of objects, that overrides parts or all of the behavior of the dependency. Mocks can, and most of the time will be reused by more than one test across our suite.
+
+They will also be used sometimes to assert that given methods were called the way they were supposed to be called.
+
+One example of a mock version of our ```Car``` class would be:
+
+```javascript
+class MockCar {
+  startCallCount: number = 0;
+
+  start() {
+    this.startCallCount++;
+  }
+}
+```
+
+And it would be used to write another test like this:
+
+```javascript
+describe('CarRemote', function() {
+  it('starts the car when the start key is held', function() {
+    var car = new MockCar();
+    var remote = new CarRemote();
+    remote.holdButton('start');
+    expect(car.startCallCount).toEqual(1);
+  });
+});
+```
+
+The biggest difference between a ```mock``` and a ```stub``` is that:
+
+• a ***stub*** provides a subset of functionality with “manual” behavior overrides, whereas
+
+• a ***mock*** generally sets expectations and verifies that certain methods were called.
+
+##Http MockBackend
+
+Now that we have this background in mind, let’s go back to writing our service test code.
+
+Interacting with the live Spotify service every time we run our tests is a poor idea but thankfully Angular provides us with a way to create ***fake HTTP calls*** with ```MockBackend```.
+
+This class can be injected into an ```Http``` instance and gives us control of how we want the HTTP interaction to act. We can interfere and assert in a variety of different ways: we can manually set a response, simulate an HTTP error, and add expectations, like asserting the URL being requested matches what we want, if the provided request parameters are correct and a lot more.
+
+So the idea here is that we’re going to provide our code with a “fake” ```Http``` library. This “fake” library will appear to our code to be the real ```Http``` library: all of the methods will match, it will return responses and so on. However, we’re not actually going to make the requests.
+
+In fact, beyond not making the requests, our ```MockBackend``` will actually allow us to setup expectations and watch for behaviors we expect.
+
+##TestBed.configureTestingModule and Providers
+
