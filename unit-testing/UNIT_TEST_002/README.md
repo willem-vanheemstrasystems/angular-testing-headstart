@@ -277,3 +277,6 @@ Of 6 tests, 1 failed, 5 passed.
 
 While this ad-hoc approach is interesting as a proof of concept (you really can write a test runner in just a few lines of code), it’s much more practical to use an existing unit testing framework that provides better output and more infrastructure for writing and organizing tests.
 
+#The QUnit JavaScript Test Suite
+
+more ...
