@@ -1,5 +1,6 @@
 /* tslint:disable forin */
 declare var jasmine: any;
+declare var navigator: any;
 import {DebugElement} from '@angular/core/src/debug/debug_node';
 import {Response, ResponseOptions} from '@angular/http';
 import {By} from '@angular/platform-browser';
